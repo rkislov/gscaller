@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #import <Cocoa/Cocoa.h>
+#import <ServiceManagement/ServiceManagement.h>
 #include <sys/sysctl.h>
 #include <net/if.h>
 #include <net/if_dl.h>
@@ -103,6 +104,7 @@ unsigned int scaler_default_index(int family) {
 @property(strong) NSTimer *timer;
 @property(strong) NSMenuItem *details;
 @property(strong) NSMenuItem *problem;
+@property(strong) NSMenuItem *loginItem;
 @property(strong) NSMutableArray<NSMenuItem *> *intervalItems;
 @property BOOL systemSleeping;
 @property BOOL displaySleeping;
@@ -141,6 +143,10 @@ static ScalerApp *controller;
     interval.submenu = choices;
     NSMenuItem *hint = [menu addItemWithTitle:@"Энергосбережение: минимум 10 с" action:NULL keyEquivalent:@""];
     hint.enabled = NO;
+    [menu addItem:NSMenuItem.separatorItem];
+    self.loginItem = [menu addItemWithTitle:@"Запускать при входе в систему" action:@selector(toggleLogin:) keyEquivalent:@""];
+    self.loginItem.target = self;
+    [self updateLoginStatus];
     [menu addItem:NSMenuItem.separatorItem];
     NSMenuItem *quit = [menu addItemWithTitle:@"Завершить gscaller" action:@selector(terminate:) keyEquivalent:@"q"];
     quit.target = NSApp;
@@ -192,7 +198,43 @@ static ScalerApp *controller;
 - (void)wake:(NSNotification *)note { self.systemSleeping = NO; scaler_tick(1); [self schedule]; }
 - (void)screenSleep:(NSNotification *)note { scaler_tick(1); scaler_save(); self.displaySleeping = YES; [self schedule]; }
 - (void)screenWake:(NSNotification *)note { self.displaySleeping = NO; scaler_tick(1); [self schedule]; }
-- (void)menuWillOpen:(NSMenu *)menu { scaler_tick(0); }
+- (void)updateLoginStatus {
+    if (@available(macOS 13.0, *)) {
+        SMAppServiceStatus status = SMAppService.mainAppService.status;
+        self.loginItem.enabled = YES;
+        self.loginItem.state = status == SMAppServiceStatusEnabled ? NSControlStateValueOn :
+            status == SMAppServiceStatusRequiresApproval ? NSControlStateValueMixed : NSControlStateValueOff;
+        self.loginItem.title = status == SMAppServiceStatusRequiresApproval ?
+            @"Запускать при входе · требуется разрешение" : @"Запускать при входе в систему";
+    } else {
+        self.loginItem.enabled = NO;
+        self.loginItem.title = @"Автозапуск доступен с macOS 13";
+    }
+}
+- (void)toggleLogin:(NSMenuItem *)sender {
+    if (@available(macOS 13.0, *)) {
+        SMAppService *service = SMAppService.mainAppService;
+        SMAppServiceStatus status = service.status;
+        NSError *error = nil;
+        BOOL success;
+        if (status == SMAppServiceStatusEnabled || status == SMAppServiceStatusRequiresApproval) {
+            success = [service unregisterAndReturnError:&error];
+        } else {
+            success = [service registerAndReturnError:&error];
+        }
+        [self updateLoginStatus];
+        if (!success) {
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = @"Не удалось изменить автозапуск";
+            alert.informativeText = error.localizedDescription ?: @"Повторите попытку после установки gscaller в Программы.";
+            [alert runModal];
+            [alert release];
+        } else if (service.status == SMAppServiceStatusRequiresApproval) {
+            [SMAppService openSystemSettingsLoginItems];
+        }
+    }
+}
+- (void)menuWillOpen:(NSMenu *)menu { [self updateLoginStatus]; }
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
     scaler_tick(1); scaler_save(); return NSTerminateNow;
 }
@@ -236,6 +278,15 @@ void scaler_display(const char *title, const char *details, const char *error) {
 const char *scaler_status_title(void) { return [controller.status.button.attributedTitle.string UTF8String]; }
 double scaler_status_width(void) { return controller.status.button.frame.size.width; }
 
+int scaler_login_status(void) {
+    @autoreleasepool {
+        if (@available(macOS 13.0, *)) return (int)SMAppService.mainAppService.status;
+        return -1;
+    }
+}
+void scaler_request_quit(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{ [NSApp terminate:nil]; });
+}
 void scaler_run(void) {
     @autoreleasepool {
         [NSApplication sharedApplication];

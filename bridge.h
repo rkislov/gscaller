@@ -9,6 +9,8 @@ int scaler_counters(ScalerCounter *out, int capacity);
 unsigned int scaler_default_index(int family);
 const char *scaler_status_title(void);
 double scaler_status_width(void);
+int scaler_login_status(void);
+void scaler_request_quit(void);
 void scaler_run(void);
 void scaler_display(const char *title, const char *details, const char *error);
 #endif

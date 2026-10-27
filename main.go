@@ -5,7 +5,7 @@ package main
 
 /*
 #cgo CFLAGS: -mmacosx-version-min=12.0
-#cgo LDFLAGS: -framework Cocoa -mmacosx-version-min=12.0
+#cgo LDFLAGS: -framework Cocoa -framework ServiceManagement -mmacosx-version-min=12.0
 #include <stdlib.h>
 #include <sys/socket.h>
 #include "bridge.h"
@@ -17,8 +17,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"time"
 	"unsafe"
 )
@@ -119,7 +121,13 @@ func main() {
 	runtime.LockOSThread()
 	sample := flag.Bool("sample", false, "Вывести системные счётчики и завершить")
 	diagnosticPath := flag.String("diagnostics", "", "Записывать контрольные снимки в JSONL (только для проверки)")
+	loginStatus := flag.Bool("login-status", false, "Показать системное состояние автозапуска")
 	flag.Parse()
+	if *loginStatus {
+		states := map[int]string{-1: "unsupported", 0: "disabled", 1: "enabled", 2: "requires-approval", 3: "not-found"}
+		fmt.Println(states[int(C.scaler_login_status())])
+		return
+	}
 	if *diagnosticPath != "" {
 		var err error
 		diagnosticFile, err = os.OpenFile(*diagnosticPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
@@ -152,5 +160,9 @@ func main() {
 	}
 	savedUsage = meter.Usage
 	lastSave = time.Now()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	go func() { <-signals; C.scaler_request_quit() }()
 	C.scaler_run()
+	signal.Stop(signals)
 }
