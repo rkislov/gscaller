@@ -67,11 +67,18 @@ func scaler_tick(resetSpeed C.int) {
 	now := time.Now()
 	values, err := counters()
 	if err != nil {
+		C.scaler_graph(0, 0, 0)
 		meter.baseline = nil
 		display("↕ —", "Счётчики временно недоступны", err.Error())
 		return
 	}
+	hadBaseline := len(meter.baseline) > 0
 	down, up := meter.sample(now, values, resetSpeed != 0)
+	validGraph := C.int(0)
+	if hadBaseline && resetSpeed == 0 {
+		validGraph = 1
+	}
+	C.scaler_graph(C.double(down), C.double(up), validGraph)
 	if now.Sub(lastSave) >= time.Minute {
 		save()
 	}

@@ -14,5 +14,6 @@ double scaler_status_width(void);
 int scaler_login_status(void);
 void scaler_request_quit(void);
 void scaler_run(void);
+void scaler_graph(double down, double up, int valid);
 void scaler_display(const char *title, const char *details, const char *error);
 #endif

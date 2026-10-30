@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include "bridge.h"
+#import "traffic_graph.h"
 #include "_cgo_export.h"
 
 // Reuse the routing snapshot buffer: normally one syscall per sample.
@@ -101,6 +102,7 @@ unsigned int scaler_default_index(int family) {
 
 @interface ScalerApp : NSObject <NSApplicationDelegate, NSMenuDelegate>
 @property(strong) NSStatusItem *status;
+@property(strong) TrafficGraph *graph;
 @property(strong) NSTimer *timer;
 @property(strong) NSMenuItem *details;
 @property(strong) NSMenuItem *problem;
@@ -160,6 +162,12 @@ static ScalerApp *controller;
     mode.state = speed ? NSControlStateValueOn : NSControlStateValueOff;
     scaler_set_mode(speed);
     [menu insertItem:mode atIndex:4];
+    self.graph = [[[TrafficGraph alloc] initWithFrame:NSMakeRect(0,0,330,260)] autorelease];
+    [self.graph setAccessibilityElement:YES];
+    [self.graph setAccessibilityLabel:@"История загрузки и отдачи за пять минут"];
+    NSMenuItem *graphItem = [[[NSMenuItem alloc] initWithTitle:@"" action:NULL keyEquivalent:@""] autorelease];
+    graphItem.view = self.graph;
+    [menu insertItem:graphItem atIndex:1];
     self.status.menu = menu;
     NSNotificationCenter *workspace = NSWorkspace.sharedWorkspace.notificationCenter;
     [workspace addObserver:self selector:@selector(sleep:) name:NSWorkspaceWillSleepNotification object:nil];
@@ -234,7 +242,7 @@ static ScalerApp *controller;
         }
     }
 }
-- (void)menuWillOpen:(NSMenu *)menu { [self updateLoginStatus]; }
+- (void)menuWillOpen:(NSMenu *)menu { [self updateLoginStatus]; self.graph.needsDisplay = YES; }
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
     scaler_tick(1); scaler_save(); return NSTerminateNow;
 }
@@ -275,6 +283,7 @@ void scaler_display(const char *title, const char *details, const char *error) {
         controller.problem.hidden = !error[0];
     }
 }
+void scaler_graph(double down, double up, int valid) { [controller.graph addDownload:down upload:up valid:valid != 0]; }
 const char *scaler_status_title(void) { return [controller.status.button.attributedTitle.string UTF8String]; }
 double scaler_status_width(void) { return controller.status.button.frame.size.width; }
 
