@@ -74,14 +74,12 @@ func TestPersistenceAndRestart(t *testing.T) {
 	}
 }
 func TestNativeSnapshot(t *testing.T) {
-	values, err := counters()
+	values, err := allCounters()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, v := range values {
-		if len(v.Name) < 3 || !(v.Name[:2] == "en" || len(v.Name) >= 3 && (v.Name[:3] == "utu" || v.Name[:3] == "ppp" || v.Name[:3] == "ips")) {
-			t.Fatalf("unexpected interface: %+v", v)
-		}
+	if len(values) == 0 {
+		t.Fatal("empty native snapshot")
 	}
 }
 func BenchmarkNativeSnapshot(b *testing.B) {

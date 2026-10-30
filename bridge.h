@@ -5,6 +5,8 @@
 #define SCALER_BRIDGE_H
 #include <stdint.h>
 typedef struct { char name[16]; uint32_t index; uint64_t received, sent; } ScalerCounter;
+int scaler_socket_counters(uint64_t *rx, uint64_t *tx);
+void scaler_socket_stop(void);
 int scaler_counters(ScalerCounter *out, int capacity);
 unsigned int scaler_default_index(int family);
 const char *scaler_status_title(void);

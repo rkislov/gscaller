@@ -25,5 +25,5 @@ clean:
 .PHONY: release
 release: test build
 	mkdir -p build/release
-	ditto -c -k --norsrc --noextattr --noqtn --keepParent $(APP) build/release/gscaller-0.1.0-macos-$$(go env GOARCH).zip
-	cd build/release && shasum -a 256 gscaller-0.1.0-macos-$$(go env GOARCH).zip > SHA256SUMS.txt
+	ditto -c -k --norsrc --noextattr --noqtn --keepParent $(APP) build/release/gscaller-0.1.1-macos-$$(go env GOARCH).zip
+	cd build/release && shasum -a 256 gscaller-0.1.1-macos-$$(go env GOARCH).zip > SHA256SUMS.txt

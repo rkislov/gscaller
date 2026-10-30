@@ -52,7 +52,14 @@ func counters() ([]counter, error) {
 		return nil, err
 	}
 	indices := []uint32{uint32(C.scaler_default_index(C.AF_INET)), uint32(C.scaler_default_index(C.AF_INET6))}
-	return selectCounters(all, indices), nil
+	selected := selectCounters(all, indices)
+	for _, v := range selected {
+		if len(v.Name) >= 2 && v.Name[:2] != "en" {
+			stopSockets()
+			return selected, nil
+		}
+	}
+	return socketCounters()
 }
 
 //export scaler_tick
@@ -90,7 +97,7 @@ func scaler_tick(resetSpeed C.int) {
 func scaler_set_mode(speed C.int) { showSpeed = speed != 0 }
 
 //export scaler_save
-func scaler_save() { save() }
+func scaler_save() { save(); stopSockets() }
 
 func save() {
 	if statePath == "" {
@@ -119,6 +126,7 @@ func display(title, details, problem string) {
 
 func main() {
 	runtime.LockOSThread()
+	defer stopSockets()
 	sample := flag.Bool("sample", false, "Вывести системные счётчики и завершить")
 	diagnosticPath := flag.String("diagnostics", "", "Записывать контрольные снимки в JSONL (только для проверки)")
 	loginStatus := flag.Bool("login-status", false, "Показать системное состояние автозапуска")
@@ -139,6 +147,10 @@ func main() {
 	}
 	if *sample {
 		values, err := counters()
+		for attempts := 0; err != nil && attempts < 25; attempts++ {
+			time.Sleep(time.Second)
+			values, err = counters()
+		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
